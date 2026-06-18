@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Almacén Pro · Olimpex</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -146,6 +147,16 @@ tbody tr:hover td{background:#fafbfc}
 .toast.error{background:var(--red-d)}
 @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
+/* ── Login screen ── */
+.login-screen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2.5rem 2rem;width:380px;max-width:95vw;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.08)}
+.login-logo{width:56px;height:56px;background:var(--green);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;font-size:28px;color:#fff}
+.login-card h1{font-size:20px;font-weight:700;margin-bottom:4px}
+.login-card p{font-size:13px;color:var(--text2);margin-bottom:1.75rem}
+.login-domain{display:inline-flex;align-items:center;gap:6px;background:var(--green-l);color:var(--green-d);padding:4px 12px;border-radius:99px;font-size:12px;font-weight:500;margin-bottom:1.5rem}
+.login-error{background:var(--red-l);color:var(--red-d);border-radius:var(--radius);padding:.6rem 1rem;font-size:13px;margin-top:1rem;display:none}
+.login-footer{font-size:11px;color:var(--text3);margin-top:1.25rem}
+
 /* ── Loading overlay ── */
 .loading{position:fixed;inset:0;background:rgba(255,255,255,.7);z-index:500;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.75rem}
 .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
@@ -183,7 +194,38 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
 <!-- Toast container -->
 <div class="toast-wrap" id="toasts"></div>
 
-<div class="app">
+<!-- Login Screen -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo"><i class="ti ti-package"></i></div>
+    <h1>Almacén Pro</h1>
+    <p>Sistema de inventario y soporte técnico</p>
+    <div class="login-domain"><i class="ti ti-shield-check"></i>Acceso exclusivo @olimpexperu.com</div>
+    <div id="g_id_onload"
+      data-client_id="640883280433-4nr417f57vb56650kipiruhjt3cp2ttq.apps.googleusercontent.com"
+      data-context="signin"
+      data-ux_mode="popup"
+      data-callback="handleGoogleLogin"
+      data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin"
+      data-type="standard"
+      data-shape="rectangular"
+      data-theme="outline"
+      data-text="signin_with"
+      data-size="large"
+      data-locale="es"
+      data-width="280">
+    </div>
+    <div class="login-error" id="login-error">
+      <i class="ti ti-alert-circle"></i> Solo se permite acceso con cuentas <strong>@olimpexperu.com</strong>
+    </div>
+    <div class="login-footer">Olimpex · Sistema interno de almacén</div>
+  </div>
+</div>
+
+<!-- App (oculto hasta login) -->
+<div class="app" id="main-app" style="display:none">
 <!-- SIDEBAR -->
 <div class="sidebar" id="sidebar">
   <div class="sidebar-logo">
@@ -202,7 +244,19 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
   <span class="nav-section">Configuración</span>
   <div class="nav-item" onclick="nav('catalogo')"><i class="ti ti-database"></i>Catálogo base</div>
   <div class="nav-item" onclick="nav('config')"><i class="ti ti-settings"></i>Configuración</div>
-  <div class="sidebar-footer" id="sync-info">Última sync: —</div>
+  <div class="sidebar-footer" id="sync-info">
+    <div id="user-info" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <img id="user-avatar" src="" style="width:24px;height:24px;border-radius:50%;display:none">
+      <div>
+        <div id="user-name" style="font-size:11px;font-weight:500;color:var(--text)"></div>
+        <div id="user-email" style="font-size:10px;color:var(--text3)"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span id="sync-time">Última sync: —</span>
+      <span id="btn-logout" onclick="logout()" style="cursor:pointer;color:var(--red-d);font-size:11px">Salir</span>
+    </div>
+  </div>
 </div>
 
 <!-- MAIN -->
@@ -384,7 +438,7 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
 </div>
 
 </div><!-- /main -->
-</div><!-- /app -->
+</div><!-- /main-app -->
 
 <!-- ══ MODAL: Producto ══ -->
 <div id="modal-prod" class="modal-backdrop">
@@ -484,6 +538,84 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
 
 <script>
 // ══════════════════════════════════════════════
+// AUTENTICACIÓN GOOGLE OAUTH
+// ══════════════════════════════════════════════
+const ALLOWED_DOMAIN = 'olimpexperu.com';
+let currentUser = null;
+
+function handleGoogleLogin(response) {
+  const payload = parseJwt(response.credential);
+  const email = payload.email || '';
+  const domain = email.split('@')[1] || '';
+
+  if (domain !== ALLOWED_DOMAIN) {
+    document.getElementById('login-error').style.display = 'block';
+    return;
+  }
+
+  // Login exitoso
+  currentUser = {
+    name: payload.name,
+    email: payload.email,
+    picture: payload.picture
+  };
+
+  // Guardar sesión
+  sessionStorage.setItem('olimpex_user', JSON.stringify(currentUser));
+
+  showApp();
+}
+
+function parseJwt(token) {
+  const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  return JSON.parse(atob(base64));
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'flex';
+
+  // Mostrar info del usuario en sidebar
+  if (currentUser) {
+    document.getElementById('user-name').textContent = currentUser.name;
+    document.getElementById('user-email').textContent = currentUser.email;
+    if (currentUser.picture) {
+      const av = document.getElementById('user-avatar');
+      av.src = currentUser.picture;
+      av.style.display = 'block';
+    }
+  }
+
+  // Cargar datos
+  if (SCRIPT_URL) loadData();
+  else { hideLoading(); nav('config'); }
+}
+
+function logout() {
+  sessionStorage.removeItem('olimpex_user');
+  currentUser = null;
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-error').style.display = 'none';
+  // Revocar token de Google
+  if (window.google) google.accounts.id.disableAutoSelect();
+}
+
+// Verificar sesión existente al cargar
+function checkSession() {
+  const saved = sessionStorage.getItem('olimpex_user');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      showApp();
+      return;
+    } catch(e) {}
+  }
+  // No hay sesión — mostrar login
+  hideLoading();
+}
+
+// ══════════════════════════════════════════════
 // CONFIGURACIÓN
 // ══════════════════════════════════════════════
 let SCRIPT_URL = localStorage.getItem('olimpex_script_url') || '';
@@ -532,7 +664,7 @@ async function loadData() {
     }));
     db.tickets = data.tickets || [];
     updateBadge();
-    const syncEl = document.getElementById('sync-info');
+    const syncEl = document.getElementById('sync-time');
     syncEl.textContent = 'Sync: ' + new Date().toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'});
     renderCurrentPage();
   } catch(e) {
@@ -1177,17 +1309,11 @@ document.querySelectorAll('.modal-backdrop').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
 });
 
-if (SCRIPT_URL) {
-  loadData();
-} else {
-  hideLoading();
-  // Mostrar instrucciones si no hay URL configurada
-  nav('config');
-  toast('Configura la URL de Apps Script para comenzar', '');
-}
+// Iniciar verificando sesión Google
+checkSession();
 
-// Auto-refresh cada 2 minutos si hay URL configurada
-setInterval(() => { if (SCRIPT_URL) loadData(); }, 120000);
+// Auto-refresh cada 2 minutos si hay sesión activa
+setInterval(() => { if (SCRIPT_URL && currentUser) loadData(); }, 120000);
 </script>
 </body>
 </html>
