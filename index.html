@@ -350,17 +350,23 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
     <h2>Soporte técnico</h2>
     <div class="topbar-actions">
       <button class="btn" onclick="loadData()"><i class="ti ti-refresh"></i>Actualizar</button>
-      <button class="btn btn-primary" onclick="openModal('modal-ticket')"><i class="ti ti-plus"></i>Nuevo ticket</button>
+      <button class="btn btn-primary" onclick="abrirNuevoTicket()"><i class="ti ti-plus"></i>Nuevo ticket</button>
     </div>
   </div>
+  <!-- Kanban de estados rápido -->
+  <div id="sop-kanban" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:1rem"></div>
   <div class="search-row">
     <select class="filter-select" id="sop-est" onchange="renderSoporte()">
       <option value="">Todos los estados</option>
+      <option value="reporte">Reporte</option>
       <option value="pendiente">Pendiente</option>
+      <option value="cita_coordinada">Cita coordinada</option>
       <option value="en_revision">En revisión</option>
+      <option value="piezas_importacion">Piezas en importación</option>
       <option value="cerrado">Cerrado</option>
     </select>
     <select class="filter-select" id="sop-prod" onchange="renderSoporte()"><option value="">Todos los productos</option></select>
+    <select class="filter-select" id="sop-tec" onchange="renderSoporte()"><option value="">Todos los técnicos</option></select>
     <select class="filter-select" id="sop-prio" onchange="renderSoporte()">
       <option value="">Todas las prioridades</option>
       <option value="critica">Crítica</option>
@@ -371,7 +377,7 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
   </div>
   <div class="card">
     <div class="table-wrap"><table>
-      <thead><tr><th>Ticket</th><th>Producto</th><th>N° Serie</th><th>Técnico</th><th>Apertura</th><th>Cierre</th><th>Tiempo</th><th>SLA</th><th>Estado</th><th></th></tr></thead>
+      <thead><tr><th>Ticket</th><th>Cliente / Producto</th><th>N° Serie</th><th>Asesor</th><th>Técnico</th><th>Apertura</th><th>Tiempo</th><th>SLA</th><th>Estado</th><th></th></tr></thead>
       <tbody id="sop-tbody"></tbody>
     </table></div>
   </div>
@@ -412,28 +418,55 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
 <!-- ══ CONFIGURACIÓN ══ -->
 <div id="page-config" class="page">
   <div class="topbar"><h2>Configuración</h2></div>
+
+  <!-- Apps Script URL -->
   <div class="config-card">
     <i class="ti ti-api"></i>
     <h3 style="font-size:16px;font-weight:600;margin-bottom:.5rem">Conectar con Google Sheets</h3>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:1rem">Pega aquí la URL de tu Apps Script Web App para activar la sincronización multiusuario.</p>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:1rem">Pega aquí la URL de tu Apps Script Web App.</p>
     <div style="display:flex;gap:8px;max-width:560px;margin:0 auto">
       <input type="text" id="cfg-url" placeholder="https://script.google.com/macros/s/..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
       <button class="btn btn-primary" onclick="saveConfig()"><i class="ti ti-check"></i>Guardar</button>
     </div>
     <p style="font-size:12px;color:var(--text3);margin-top:.5rem">La URL se guarda en este navegador. Cada usuario debe pegarla una vez.</p>
   </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+    <!-- Marcas -->
+    <div class="card">
+      <div class="card-title"><i class="ti ti-building-factory-2" style="color:var(--green)"></i>Marcas que manejamos</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <input type="text" id="cfg-marca-inp" placeholder="Ej: Philips, GE Healthcare..." style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px" onkeydown="if(event.key==='Enter'){event.preventDefault();addMarca()}">
+        <button class="btn btn-sm btn-primary" onclick="addMarca()"><i class="ti ti-plus"></i>Agregar</button>
+      </div>
+      <div id="cfg-marcas-list" class="sn-list"></div>
+    </div>
+
+    <!-- Técnicos -->
+    <div class="card">
+      <div class="card-title"><i class="ti ti-tool" style="color:var(--blue)"></i>Equipo de soporte técnico</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        <input type="text" id="cfg-tec-nom" placeholder="Nombre" style="flex:1;min-width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
+        <input type="text" id="cfg-tec-email" placeholder="correo@olimpexperu.com" style="flex:2;min-width:160px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
+        <select id="cfg-tec-rol" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+          <option value="tecnico">Técnico</option>
+          <option value="jefe">Jefe soporte</option>
+        </select>
+        <button class="btn btn-sm btn-primary" onclick="addTecnico()"><i class="ti ti-plus"></i>Agregar</button>
+      </div>
+      <div id="cfg-tecnicos-list"></div>
+    </div>
+  </div>
+
+  <!-- Asesores -->
   <div class="card">
-    <div class="card-title"><i class="ti ti-list-numbers"></i>Pasos para configurar</div>
-    <ol class="step-list">
-      <li>Abre tu Google Sheets en tu cuenta <strong>@olimpex.com</strong>.</li>
-      <li>Ve a <strong>Extensiones → Apps Script</strong>.</li>
-      <li>Borra el contenido existente y pega todo el código del archivo <code>Code.gs</code> que te entregamos.</li>
-      <li>Haz clic en <strong>Guardar</strong> (ícono de disco) y luego ejecuta la función <code>initSheets</code> para crear las hojas automáticamente.</li>
-      <li>Ve a <strong>Implementar → Nueva implementación</strong>. Tipo: <em>Aplicación web</em>. Ejecutar como: <em>Yo</em>. Acceso: <em>Cualquier usuario</em>. Haz clic en <strong>Implementar</strong>.</li>
-      <li>Autoriza los permisos cuando te lo pida Google.</li>
-      <li>Copia la <strong>URL de la aplicación web</strong> que aparece y pégala arriba.</li>
-      <li>Comparte esa misma URL con cada persona del equipo para que la peguen en su navegador.</li>
-    </ol>
+    <div class="card-title"><i class="ti ti-user-check" style="color:var(--amber)"></i>Asesores comerciales</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <input type="text" id="cfg-as-nom" placeholder="Nombre del asesor" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
+      <input type="text" id="cfg-as-email" placeholder="correo@olimpexperu.com" style="flex:2;min-width:180px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
+      <button class="btn btn-sm btn-primary" onclick="addAsesor()"><i class="ti ti-plus"></i>Agregar</button>
+    </div>
+    <div id="cfg-asesores-list"></div>
   </div>
 </div>
 
@@ -509,26 +542,58 @@ code{font-family:monospace;font-size:.9em;background:var(--surface2);padding:1px
 
 <!-- ══ MODAL: Ticket ══ -->
 <div id="modal-ticket" class="modal-backdrop">
-<div class="modal">
+<div class="modal" style="width:780px">
   <div class="modal-header">
     <h3 id="tk-title">Nuevo ticket de soporte</h3>
     <button class="btn btn-sm btn-icon" onclick="closeModal('modal-ticket')"><i class="ti ti-x"></i></button>
   </div>
+
+  <!-- Sección 1: Datos del reporte -->
+  <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">📋 Datos del reporte</div>
   <div class="form-grid">
-    <div class="form-group"><label>Producto <span class="required">*</span></label><select id="tk-prod" onchange="onTkProd()"><option value="">Seleccionar...</option></select></div>
-    <div class="form-group"><label>N° de serie</label><select id="tk-sn"><option value="">Sin serie / N/A</option></select></div>
-    <div class="form-group"><label>Técnico asignado <span class="required">*</span></label><input id="tk-tec" type="text" placeholder="Nombre del técnico"></div>
+    <div class="form-group"><label>Producto / Equipo <span class="required">*</span></label><select id="tk-prod" onchange="onTkProd()"><option value="">Seleccionar...</option></select></div>
+    <div class="form-group"><label>N° de serie <span style="font-size:11px;color:var(--text3)">(opcional al reportar)</span></label>
+      <div style="display:flex;gap:6px">
+        <select id="tk-sn" style="flex:1"><option value="">Sin serie / agregar después</option></select>
+        <input type="text" id="tk-sn-manual" placeholder="O escribe aquí" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
+      </div>
+    </div>
+    <div class="form-group"><label>Cliente <span class="required">*</span></label><input id="tk-cliente" type="text" placeholder="Nombre del cliente o institución"></div>
     <div class="form-group"><label>Prioridad</label>
       <select id="tk-prio"><option value="baja">Baja</option><option value="media" selected>Media</option><option value="alta">Alta</option><option value="critica">Crítica</option></select>
     </div>
-    <div class="form-group"><label>Fecha apertura</label><div style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px"><i class="ti ti-lock" style="font-size:14px;color:var(--text3)"></i><span id="tk-ap-display">—</span><span style="font-size:11px;color:var(--text3);margin-left:auto">Automático</span></div></div>
-    <div class="form-group" id="tk-ci-g" style="display:none"><label>Fecha cierre</label><div style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px"><i class="ti ti-lock" style="font-size:14px;color:var(--text3)"></i><span id="tk-ci-display">—</span><span style="font-size:11px;color:var(--text3);margin-left:auto">Al cerrar</span></div></div>
   </div>
-  <div class="form-group"><label>Descripción del problema <span class="required">*</span></label><textarea id="tk-desc" placeholder="Describe el problema observado..."></textarea></div>
-  <div class="form-group" id="tk-res-g" style="display:none"><label>Resolución / acción tomada</label><textarea id="tk-res" placeholder="Describe la solución aplicada..."></textarea></div>
-  <div class="form-group" id="tk-est-g" style="display:none"><label>Estado del ticket</label>
-    <select id="tk-est"><option value="pendiente">Pendiente</option><option value="en_revision">En revisión</option><option value="cerrado">Cerrado</option></select>
+  <div class="form-group" style="margin-bottom:.75rem"><label>Descripción del problema / falla reportada <span class="required">*</span></label><textarea id="tk-desc" placeholder="Describe la falla reportada por el cliente..."></textarea></div>
+
+  <!-- Sección 2: Asesor -->
+  <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem">👤 Asesor relacionado</div>
+  <div class="form-grid">
+    <div class="form-group"><label>Asesor <span class="required">*</span></label><select id="tk-asesor" onchange="onTkAsesor()"><option value="">Seleccionar asesor...</option></select></div>
+    <div class="form-group"><label>Correo del asesor</label><div style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);font-size:13px;color:var(--text2)" id="tk-asesor-email">—</div></div>
   </div>
+
+  <!-- Sección 3: Asignación técnica (solo jefe o al editar) -->
+  <div id="tk-asign-section">
+    <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem">🔧 Asignación técnica</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Técnico asignado</label><select id="tk-tec"><option value="">Sin asignar aún</option></select></div>
+      <div class="form-group"><label>Estado</label>
+        <select id="tk-est" onchange="onTkEstado()">
+          <option value="reporte">Reporte</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="cita_coordinada">Cita coordinada</option>
+          <option value="en_revision">En revisión</option>
+          <option value="piezas_importacion">Piezas en importación</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Fecha apertura</label><div style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px"><i class="ti ti-lock" style="font-size:13px;color:var(--text3)"></i><span id="tk-ap-display">—</span><span style="font-size:11px;color:var(--text3);margin-left:auto">Automático</span></div></div>
+      <div class="form-group" id="tk-ci-g" style="display:none"><label>Fecha cierre</label><div style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px"><i class="ti ti-lock" style="font-size:13px;color:var(--text3)"></i><span id="tk-ci-display">Al cerrar</span></div></div>
+    </div>
+    <div class="form-group" id="tk-res-g" style="display:none;margin-bottom:.5rem"><label>Resolución / acción tomada</label><textarea id="tk-res" placeholder="Describe la solución aplicada..."></textarea></div>
+    <div class="form-group" id="tk-nota-tec-g"><label>Nota del técnico / avance</label><textarea id="tk-nota-tec" placeholder="Observaciones de la inspección, piezas requeridas, etc..." style="min-height:56px"></textarea></div>
+  </div>
+
   <div class="modal-footer">
     <button class="btn" onclick="closeModal('modal-ticket')">Cancelar</button>
     <button class="btn btn-primary" onclick="saveTicket()"><i class="ti ti-check"></i>Guardar ticket</button>
@@ -620,14 +685,82 @@ function checkSession() {
 // ══════════════════════════════════════════════
 let SCRIPT_URL = localStorage.getItem('olimpex_script_url') || '';
 
-// DB en memoria (sincronizada desde Sheets)
+// Configuración local (marcas, técnicos, asesores)
+let cfg = JSON.parse(localStorage.getItem('olimpex_cfg') || '{"marcas":[],"tecnicos":[],"asesores":[]}');
+
+// DB en memoria
 let db = { productos: [], movimientos: [], tickets: [] };
 let editingProdId = null;
 let editingTicketId = null;
 let movSNs = [];
-let isSaving = false;
 
-// ── Config ──────────────────────────────────────
+function saveCfg() { localStorage.setItem('olimpex_cfg', JSON.stringify(cfg)); }
+
+// ── Marcas ──────────────────────────────────────
+function addMarca() {
+  const v = document.getElementById('cfg-marca-inp').value.trim();
+  if (!v) return;
+  if (!cfg.marcas.includes(v)) { cfg.marcas.push(v); saveCfg(); }
+  document.getElementById('cfg-marca-inp').value = '';
+  renderCfgMarcas();
+}
+function removeMarca(m) { cfg.marcas = cfg.marcas.filter(x=>x!==m); saveCfg(); renderCfgMarcas(); }
+function renderCfgMarcas() {
+  document.getElementById('cfg-marcas-list').innerHTML = cfg.marcas.map(m =>
+    `<span class="sn-chip">${m}<span class="sn-rm" onclick="removeMarca('${m}')"><i class="ti ti-x" style="font-size:11px"></i></span></span>`
+  ).join('') || '<span style="font-size:12px;color:var(--text3)">Sin marcas agregadas</span>';
+}
+
+// ── Técnicos ────────────────────────────────────
+function addTecnico() {
+  const nom   = document.getElementById('cfg-tec-nom').value.trim();
+  const email = document.getElementById('cfg-tec-email').value.trim();
+  const rol   = document.getElementById('cfg-tec-rol').value;
+  if (!nom || !email) { toast('Nombre y correo son obligatorios', 'error'); return; }
+  if (!cfg.tecnicos.find(t=>t.email===email)) {
+    cfg.tecnicos.push({ nombre: nom, email, rol });
+    saveCfg();
+  }
+  document.getElementById('cfg-tec-nom').value = '';
+  document.getElementById('cfg-tec-email').value = '';
+  renderCfgTecnicos();
+}
+function removeTecnico(email) { cfg.tecnicos = cfg.tecnicos.filter(t=>t.email!==email); saveCfg(); renderCfgTecnicos(); }
+function renderCfgTecnicos() {
+  const el = document.getElementById('cfg-tecnicos-list');
+  el.innerHTML = cfg.tecnicos.length
+    ? cfg.tecnicos.map(t => `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div><span style="font-size:13px;font-weight:500">${t.nombre}</span> <span class="badge ${t.rol==='jefe'?'b-alta':'b-progress'}" style="margin-left:4px">${t.rol}</span><div style="font-size:11px;color:var(--text3)">${t.email}</div></div>
+        <button class="btn btn-sm btn-icon" onclick="removeTecnico('${t.email}')"><i class="ti ti-trash" style="color:var(--red)"></i></button>
+      </div>`).join('')
+    : '<p style="font-size:12px;color:var(--text3)">Sin técnicos agregados</p>';
+}
+
+// ── Asesores ────────────────────────────────────
+function addAsesor() {
+  const nom   = document.getElementById('cfg-as-nom').value.trim();
+  const email = document.getElementById('cfg-as-email').value.trim();
+  if (!nom || !email) { toast('Nombre y correo son obligatorios', 'error'); return; }
+  if (!cfg.asesores.find(a=>a.email===email)) {
+    cfg.asesores.push({ nombre: nom, email });
+    saveCfg();
+  }
+  document.getElementById('cfg-as-nom').value = '';
+  document.getElementById('cfg-as-email').value = '';
+  renderCfgAsesores();
+}
+function removeAsesor(email) { cfg.asesores = cfg.asesores.filter(a=>a.email!==email); saveCfg(); renderCfgAsesores(); }
+function renderCfgAsesores() {
+  const el = document.getElementById('cfg-asesores-list');
+  el.innerHTML = cfg.asesores.length
+    ? `<table style="width:100%;font-size:13px;border-collapse:collapse">
+        <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2)">Nombre</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2)">Correo</th><th></th></tr></thead>
+        <tbody>${cfg.asesores.map(a=>`<tr><td style="padding:7px 8px">${a.nombre}</td><td style="padding:7px 8px;color:var(--text2)">${a.email}</td><td><button class="btn btn-sm btn-icon" onclick="removeAsesor('${a.email}')"><i class="ti ti-trash" style="color:var(--red)"></i></button></td></tr>`).join('')}</tbody>
+      </table>`
+    : '<p style="font-size:12px;color:var(--text3)">Sin asesores agregados</p>';
+}
+
+// ── Config URL ──────────────────────────────────
 function saveConfig() {
   const url = document.getElementById('cfg-url').value.trim();
   if (!url.startsWith('https://script.google.com')) {
@@ -695,13 +828,17 @@ function renderCurrentPage() {
   const active = document.querySelector('.page.active');
   if (!active) return;
   const id = active.id.replace('page-', '');
-  if (id === 'dashboard')  renderDashboard();
-  if (id === 'inventario') renderInventario();
-  if (id === 'movimientos') renderMovimientos();
-  if (id === 'soporte')    renderSoporte();
+  if (id === 'dashboard')    renderDashboard();
+  if (id === 'inventario')   renderInventario();
+  if (id === 'movimientos')  renderMovimientos();
+  if (id === 'soporte')      renderSoporte();
   if (id === 'trazabilidad') { populateTrazSelect(); renderTraz(); }
-  if (id === 'catalogo')   renderCatalogo();
-  if (id === 'config') { const el = document.getElementById('cfg-url'); if (SCRIPT_URL) el.value = SCRIPT_URL; }
+  if (id === 'catalogo')     renderCatalogo();
+  if (id === 'config') {
+    const el = document.getElementById('cfg-url');
+    if (SCRIPT_URL) el.value = SCRIPT_URL;
+    renderCfgMarcas(); renderCfgTecnicos(); renderCfgAsesores();
+  }
 }
 
 // ── Modales ─────────────────────────────────────
@@ -732,19 +869,26 @@ function openModal(id) {
   }
   if (id === 'modal-ticket') {
     if (!editingTicketId) {
-      // Solo resetear si es ticket NUEVO
       editingTicketId = null;
       document.getElementById('tk-title').textContent = 'Nuevo ticket de soporte';
-      const now = new Date(); now.setSeconds(0, 0);
+      const now = new Date(); now.setSeconds(0,0);
       document.getElementById('tk-ap-display').textContent = fmtDateNow(now);
-      document.getElementById('tk-ci-display').textContent = '—';
-      ['tk-desc','tk-res','tk-tec'].forEach(f => document.getElementById(f).value = '');
+      document.getElementById('tk-ci-display').textContent = 'Al cerrar';
+      ['tk-desc','tk-res','tk-nota-tec','tk-cliente','tk-sn-manual'].forEach(f => document.getElementById(f).value = '');
       document.getElementById('tk-ci-g').style.display = 'none';
       document.getElementById('tk-res-g').style.display = 'none';
-      document.getElementById('tk-est-g').style.display = 'none';
       document.getElementById('tk-prio').value = 'media';
+      document.getElementById('tk-est').value = 'reporte';
       populateSelect('tk-prod', db.productos, 'codigo', p => p.nombre + ' (' + p.codigo + ')');
-      document.getElementById('tk-sn').innerHTML = '<option value="">Sin serie / N/A</option>';
+      document.getElementById('tk-sn').innerHTML = '<option value="">Sin serie / agregar después</option>';
+      // Poblar técnicos y asesores desde config
+      const tecSel = document.getElementById('tk-tec');
+      tecSel.innerHTML = '<option value="">Sin asignar aún</option>';
+      cfg.tecnicos.forEach(t => { const o=document.createElement('option'); o.value=t.nombre+'|'+t.email; o.textContent=t.nombre+(t.rol==='jefe'?' ★':''); tecSel.appendChild(o); });
+      const asSel = document.getElementById('tk-asesor');
+      asSel.innerHTML = '<option value="">Seleccionar asesor...</option>';
+      cfg.asesores.forEach(a => { const o=document.createElement('option'); o.value=a.nombre+'|'+a.email; o.textContent=a.nombre; asSel.appendChild(o); });
+      document.getElementById('tk-asesor-email').textContent = '—';
     }
   }
   document.getElementById(id).classList.add('open');
@@ -870,8 +1014,25 @@ function onTkProd() {
   const codigo = document.getElementById('tk-prod').value;
   const sns = getSNEnStock(codigo);
   const sel = document.getElementById('tk-sn');
-  sel.innerHTML = '<option value="">Sin serie / N/A</option>';
-  sns.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+  sel.innerHTML = '<option value="">Sin serie / agregar después</option>';
+  sns.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+}
+
+function onTkAsesor() {
+  const val = document.getElementById('tk-asesor').value;
+  const email = val.includes('|') ? val.split('|')[1] : '—';
+  document.getElementById('tk-asesor-email').textContent = email || '—';
+}
+
+function onTkEstado() {
+  const est = document.getElementById('tk-est').value;
+  document.getElementById('tk-ci-g').style.display  = est === 'cerrado' ? '' : 'none';
+  document.getElementById('tk-res-g').style.display = est === 'cerrado' ? '' : 'none';
+}
+
+function abrirNuevoTicket() {
+  editingTicketId = null;
+  openModal('modal-ticket');
 }
 
 // ══════════════════════════════════════════════
@@ -947,38 +1108,52 @@ async function saveMov() {
 
 async function saveTicket() {
   const codigo  = document.getElementById('tk-prod').value;
-  const tecnico = document.getElementById('tk-tec').value.trim();
   const desc    = document.getElementById('tk-desc').value.trim();
-  if (!codigo || !tecnico || !desc) { toast('Producto, técnico y descripción son obligatorios', 'error'); return; }
+  const cliente = document.getElementById('tk-cliente').value.trim();
+  const asesorVal = document.getElementById('tk-asesor').value;
+  if (!codigo || !desc || !cliente) { toast('Producto, cliente y descripción son obligatorios', 'error'); return; }
 
   const prod = db.productos.find(p => p.codigo === codigo);
-  const estado = editingTicketId
-    ? (document.getElementById('tk-est').value || 'pendiente')
-    : 'pendiente';
+  const estado = document.getElementById('tk-est').value || 'reporte';
   const existingTk = editingTicketId ? db.tickets.find(t=>t.id===editingTicketId) : null;
+  const estadoAnterior = existingTk ? existingTk.estado : null;
 
-  // Fecha apertura: si es nuevo → ahora; si es edición → conservar la original
+  // Serie: del select o del campo manual
+  const snSelect = document.getElementById('tk-sn').value;
+  const snManual = document.getElementById('tk-sn-manual').value.trim().toUpperCase();
+  const serie = snManual || snSelect || '';
+
+  // Técnico
+  const tecVal = document.getElementById('tk-tec').value;
+  const tecNombre = tecVal.includes('|') ? tecVal.split('|')[0] : tecVal;
+  const tecEmail  = tecVal.includes('|') ? tecVal.split('|')[1] : '';
+
+  // Asesor
+  const asesorNombre = asesorVal.includes('|') ? asesorVal.split('|')[0] : '';
+  const asesorEmail  = asesorVal.includes('|') ? asesorVal.split('|')[1] : '';
+
   const apertura = existingTk ? existingTk.apertura : new Date().toISOString();
-
-  // Fecha cierre: automática solo cuando se marca como "cerrado"
   let cierre = existingTk ? (existingTk.cierre || null) : null;
-  if (estado === 'cerrado' && !cierre) {
-    cierre = new Date().toISOString(); // Registra el momento exacto del cierre
-    document.getElementById('tk-ci-display').textContent = fmtDateNow(new Date());
-  }
+  if (estado === 'cerrado' && !cierre) cierre = new Date().toISOString();
 
   const tk = {
     id:           editingTicketId || uid(),
     ticketNum:    existingTk ? existingTk.ticketNum : 'TK-' + String(db.tickets.length + 1).padStart(4, '0'),
     codigo,
     nombreProd:   prod ? prod.nombre : '',
-    serie:        document.getElementById('tk-sn').value,
-    tecnico,
-    usuarioEmail: currentUser ? currentUser.email : '',
+    cliente,
+    serie,
+    tecnico:      tecNombre,
+    tecnicoEmail: tecEmail,
+    asesor:       asesorNombre,
+    asesorEmail,
+    registradoPor: currentUser ? currentUser.name : '',
+    usuarioEmail:  currentUser ? currentUser.email : '',
     prioridad:    document.getElementById('tk-prio').value,
     apertura,
     cierre,
     desc,
+    notaTecnico:  document.getElementById('tk-nota-tec').value.trim(),
     resolucion:   document.getElementById('tk-res').value.trim(),
     estado,
     slaHrs:       prod ? prod.slaHrs : 48
@@ -986,11 +1161,17 @@ async function saveTicket() {
 
   showLoading();
   try {
-    await api(editingTicketId ? 'updateTicket' : 'saveTicket', tk);
+    // Notificaciones por correo vía Apps Script
+    const notif = { accion: editingTicketId ? 'updateTicket' : 'saveTicket', ticket: tk, estadoAnterior };
+    await api(editingTicketId ? 'updateTicket' : 'saveTicket', { ...tk, _notif: notif });
+
     if (editingTicketId) { const i = db.tickets.findIndex(t=>t.id===editingTicketId); db.tickets[i] = tk; }
     else db.tickets.push(tk);
     updateBadge();
-    toast('Ticket guardado', 'success');
+
+    // Mensaje según estado
+    const estadoLabel = { reporte:'Reporte', pendiente:'Pendiente', cita_coordinada:'Cita coordinada', en_revision:'En revisión', piezas_importacion:'Piezas en importación', cerrado:'Cerrado' };
+    toast(`Ticket guardado — Estado: ${estadoLabel[estado]||estado}`, 'success');
     closeModal('modal-ticket');
     renderSoporte(); renderDashboard();
   } catch(e) { toast('Error: ' + e.message, 'error'); }
@@ -1144,39 +1325,64 @@ function renderMovimientos() {
     : '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text2)">Sin movimientos</td></tr>';
 }
 
+const ESTADOS = {
+  reporte:            { label:'Reporte',              badge:'b-pending',  color:'var(--amber)' },
+  pendiente:          { label:'Pendiente',             badge:'b-pending',  color:'var(--amber)' },
+  cita_coordinada:    { label:'Cita coordinada',       badge:'b-progress', color:'var(--blue)' },
+  en_revision:        { label:'En revisión',           badge:'b-progress', color:'var(--blue)' },
+  piezas_importacion: { label:'Piezas en importación', badge:'b-alta',     color:'var(--red)' },
+  cerrado:            { label:'Cerrado',               badge:'b-closed',   color:'var(--gray-d)' }
+};
+
 function renderSoporte() {
   const est  = document.getElementById('sop-est').value;
   const prod = document.getElementById('sop-prod').value;
   const prio = document.getElementById('sop-prio').value;
 
-  const sel = document.getElementById('sop-prod');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Todos los productos</option>';
-  db.productos.forEach(p => { const o=document.createElement('option'); o.value=p.codigo; o.textContent=p.nombre; sel.appendChild(o); });
-  sel.value = cur;
+  // Poblar selects dinámicos
+  const ps = document.getElementById('sop-prod'); const pc = ps.value;
+  ps.innerHTML = '<option value="">Todos los productos</option>';
+  db.productos.forEach(p => { const o=document.createElement('option'); o.value=p.codigo; o.textContent=p.nombre; ps.appendChild(o); });
+  ps.value = pc;
+
+  const ts = document.getElementById('sop-tec'); const tc = ts.value;
+  ts.innerHTML = '<option value="">Todos los técnicos</option>';
+  cfg.tecnicos.forEach(t => { const o=document.createElement('option'); o.value=t.nombre; o.textContent=t.nombre; ts.appendChild(o); });
+  ts.value = tc;
+
+  // Kanban resumen
+  const kanban = document.getElementById('sop-kanban');
+  kanban.innerHTML = Object.entries(ESTADOS).map(([k,v]) => {
+    const cnt = db.tickets.filter(t=>t.estado===k).length;
+    return `<div onclick="document.getElementById('sop-est').value='${k}';renderSoporte()" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem .75rem;text-align:center;border-top:3px solid ${v.color}">
+      <div style="font-size:20px;font-weight:700;color:${v.color}">${cnt}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">${v.label}</div>
+    </div>`;
+  }).join('');
 
   let tks = db.tickets;
   if (est)  tks = tks.filter(t => t.estado === est);
   if (prod) tks = tks.filter(t => t.codigo === prod);
   if (prio) tks = tks.filter(t => t.prioridad === prio);
+  const tecF = document.getElementById('sop-tec').value;
+  if (tecF) tks = tks.filter(t => t.tecnico === tecF);
   tks = [...tks].sort((a,b) => new Date(b.apertura) - new Date(a.apertura));
-
-  const estBadge = { pendiente:'b-pending', en_revision:'b-progress', cerrado:'b-closed' };
 
   document.getElementById('sop-tbody').innerHTML = tks.length
     ? tks.map(t => {
         const h = calcHrs(t.apertura, t.estado === 'cerrado' ? t.cierre : null);
+        const est = ESTADOS[t.estado] || { label: t.estado, badge:'b-closed' };
         return `<tr>
           <td><div style="font-size:12px;font-weight:600">${t.ticketNum}</div><span class="badge b-${t.prioridad}" style="margin-top:2px">${t.prioridad}</span></td>
-          <td><div style="font-size:13px">${t.nombreProd}</div><code style="font-size:10px">${t.codigo}</code></td>
-          <td>${t.serie||'—'}</td>
-          <td style="font-size:13px">${t.tecnico}</td>
+          <td><div style="font-size:13px;font-weight:500">${t.cliente||'—'}</div><div style="font-size:12px;color:var(--text2)">${t.nombreProd}</div>${t.serie?`<code style="font-size:10px">${t.serie}</code>`:''}</td>
+          <td style="font-size:11px">${t.serie||'<span style="color:var(--text3)">Pendiente</span>'}</td>
+          <td style="font-size:12px">${t.asesor||'—'}</td>
+          <td style="font-size:12px">${t.tecnico||'<span style="color:var(--text3)">Sin asignar</span>'}</td>
           <td style="font-size:12px;white-space:nowrap">${fmtDate(t.apertura)}</td>
-          <td style="font-size:12px;white-space:nowrap">${t.cierre?fmtDate(t.cierre):'<span style="color:var(--text3)">En curso</span>'}</td>
           <td style="font-family:monospace;font-size:12px">${fmtHrs(h)}</td>
           <td>${slaBadge(t)}</td>
-          <td><span class="badge ${estBadge[t.estado]||''}">${t.estado.replace('_',' ')}</span></td>
-          <td><button class="btn btn-sm btn-icon" onclick="editTicket('${t.id}')"><i class="ti ti-edit"></i></button></td>
+          <td><span class="badge ${est.badge}">${est.label}</span></td>
+          <td><button class="btn btn-sm btn-icon" title="Actualizar ticket" onclick="editTicket('${t.id}')"><i class="ti ti-edit"></i></button></td>
         </tr>`;
       }).join('')
     : '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text2)">Sin tickets</td></tr>';
@@ -1300,35 +1506,50 @@ function editTicket(id) {
   if (!t) return;
   editingTicketId = id;
 
-  // Primero abrir el modal (sin resetear porque editingTicketId ya está seteado)
   document.getElementById('modal-ticket').classList.add('open');
+  document.getElementById('tk-title').textContent = 'Actualizar — ' + t.ticketNum;
 
-  // Título
-  document.getElementById('tk-title').textContent = 'Actualizar ticket ' + t.ticketNum;
-
-  // Poblar producto y serie
+  // Producto y serie
   populateSelect('tk-prod', db.productos, 'codigo', p => p.nombre + ' (' + p.codigo + ')');
   document.getElementById('tk-prod').value = t.codigo;
   onTkProd();
   setTimeout(() => { document.getElementById('tk-sn').value = t.serie || ''; }, 80);
+  document.getElementById('tk-sn-manual').value = '';
 
-  // Campos editables
-  document.getElementById('tk-tec').value  = t.tecnico;
-  document.getElementById('tk-prio').value = t.prioridad;
-  document.getElementById('tk-desc').value = t.desc;
-  document.getElementById('tk-res').value  = t.resolucion || '';
-  document.getElementById('tk-est').value  = t.estado;
+  // Datos del reporte
+  document.getElementById('tk-cliente').value = t.cliente || '';
+  document.getElementById('tk-prio').value    = t.prioridad || 'media';
+  document.getElementById('tk-desc').value    = t.desc || '';
 
-  // Fechas — solo lectura
+  // Asesor
+  const asSel = document.getElementById('tk-asesor');
+  asSel.innerHTML = '<option value="">Seleccionar asesor...</option>';
+  cfg.asesores.forEach(a => { const o=document.createElement('option'); o.value=a.nombre+'|'+a.email; o.textContent=a.nombre; asSel.appendChild(o); });
+  if (t.asesor && t.asesorEmail) asSel.value = t.asesor+'|'+t.asesorEmail;
+  document.getElementById('tk-asesor-email').textContent = t.asesorEmail || '—';
+
+  // Técnico
+  const tecSel = document.getElementById('tk-tec');
+  tecSel.innerHTML = '<option value="">Sin asignar aún</option>';
+  cfg.tecnicos.forEach(x => { const o=document.createElement('option'); o.value=x.nombre+'|'+x.email; o.textContent=x.nombre+(x.rol==='jefe'?' ★':''); tecSel.appendChild(o); });
+  if (t.tecnico && t.tecnicoEmail) tecSel.value = t.tecnico+'|'+t.tecnicoEmail;
+  else if (t.tecnico) {
+    // compatibilidad con tickets anteriores
+    const opt = document.createElement('option');
+    opt.value = t.tecnico+'|'; opt.textContent = t.tecnico; tecSel.appendChild(opt);
+    tecSel.value = t.tecnico+'|';
+  }
+
+  // Estado y fechas
+  document.getElementById('tk-est').value = t.estado || 'reporte';
   document.getElementById('tk-ap-display').textContent = t.apertura ? fmtDate(t.apertura) : '—';
-  document.getElementById('tk-ci-display').textContent = t.cierre
-    ? fmtDate(t.cierre)
-    : (t.estado === 'cerrado' ? fmtDateNow(new Date()) : 'Se registra al cerrar');
+  document.getElementById('tk-ci-display').textContent = t.cierre ? fmtDate(t.cierre) : 'Se registra al cerrar';
+  document.getElementById('tk-ci-g').style.display  = t.estado === 'cerrado' ? '' : 'none';
+  document.getElementById('tk-res-g').style.display = t.estado === 'cerrado' ? '' : 'none';
 
-  // Mostrar campos de cierre y resolución
-  document.getElementById('tk-ci-g').style.display  = '';
-  document.getElementById('tk-res-g').style.display = '';
-  document.getElementById('tk-est-g').style.display = '';
+  // Notas y resolución
+  document.getElementById('tk-nota-tec').value = t.notaTecnico || '';
+  document.getElementById('tk-res').value      = t.resolucion  || '';
 }
 
 function openMovForProd(codigo) {
