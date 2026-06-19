@@ -222,12 +222,13 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
   <div class="nav-item" onclick="nav('tickets')"><i class="ti ti-headset"></i>Tickets <span class="nav-badge" id="badge-open" style="display:none">0</span></div>
   <div class="nav-item" onclick="nav('reportes')"><i class="ti ti-chart-bar"></i>Reportes SLA</div>
   <span class="nav-section">Configuración</span>
-  <div class="nav-item" onclick="nav('config')"><i class="ti ti-settings"></i>Configuración</div>
+  <div class="nav-item" id="nav-config" onclick="nav('config')"><i class="ti ti-settings"></i>Configuración</div>
   <div class="sidebar-footer">
     <div id="user-info" style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
       <img id="user-avatar" src="" style="width:24px;height:24px;border-radius:50%;display:none">
       <div><div id="user-name" style="font-size:11px;font-weight:600;color:var(--text)"></div>
-      <div id="user-email" style="font-size:10px;color:var(--text3)"></div></div>
+      <div id="user-email" style="font-size:10px;color:var(--text3)"></div>
+      <div id="user-rol" style="font-size:10px;color:var(--green-d);font-weight:500;margin-top:1px"></div></div>
     </div>
     <div style="display:flex;justify-content:space-between">
       <span id="sync-time">—</span>
@@ -455,13 +456,13 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
 
   <div class="divider"></div>
 
-  <!-- SECCIÓN 5: Asignación (edición) -->
+  <!-- SECCIÓN 5: Asignación — solo jefe y admin pueden asignar técnico -->
   <div class="form-section"><i class="ti ti-tool"></i>Asignación y seguimiento</div>
   <div class="form-grid-3">
-    <div class="form-group"><label>Técnico asignado</label>
+    <div class="form-group" id="f-tec-g"><label>Técnico asignado</label>
       <select id="f-tec" onchange="onTecnico()"><option value="">Sin asignar aún</option></select>
     </div>
-    <div class="form-group"><label>Estado</label>
+    <div class="form-group" id="f-est-g"><label>Estado</label>
       <select id="f-est" onchange="onEstado()">
         <option value="reporte">Reporte</option>
         <option value="pendiente">Pendiente</option>
@@ -516,7 +517,21 @@ const ESTADOS = {
 // AUTH GOOGLE
 // ══════════════════════════════════════════════
 const ALLOWED_DOMAIN = 'olimpexperu.com';
+const ADMIN_EMAIL    = 'agdelaguila@olimpexperu.com';
 let currentUser = null;
+
+// Roles: admin | jefe | tecnico | asesor
+function getRol() {
+  if (!currentUser) return 'asesor';
+  const email = currentUser.email;
+  if (email === ADMIN_EMAIL) return 'admin';
+  const tec = cfg.tecnicos.find(t => t.email === email);
+  if (tec) return tec.rol === 'jefe' ? 'jefe' : 'tecnico';
+  return 'asesor';
+}
+function esAdmin()     { return getRol() === 'admin'; }
+function esJefeOAdmin(){ return ['admin','jefe'].includes(getRol()); }
+function puedeCambiarEstado(){ return ['admin','jefe','tecnico'].includes(getRol()); }
 
 function handleGoogleLogin(response) {
   const p = parseJwt(response.credential);
@@ -540,7 +555,21 @@ function showApp() {
     document.getElementById('user-email').textContent = currentUser.email;
     if (currentUser.picture) { const av=document.getElementById('user-avatar'); av.src=currentUser.picture; av.style.display='block'; }
   }
+  // Aplicar permisos de rol
+  aplicarRol();
   if (SCRIPT_URL) loadData(); else { hideLoading(); nav('config'); }
+}
+
+function aplicarRol() {
+  // Menú Configuración — solo admin
+  const navConfig = document.getElementById('nav-config');
+  if (navConfig) navConfig.style.display = esAdmin() ? '' : 'none';
+  // Badge de rol en sidebar
+  const rolEl = document.getElementById('user-rol');
+  if (rolEl) {
+    const roles = { admin:'Administrador', jefe:'Jefe soporte', tecnico:'Técnico', asesor:'Asesor' };
+    rolEl.textContent = roles[getRol()] || '';
+  }
 }
 
 function logout() {
@@ -581,6 +610,9 @@ function addTec() {
   if (!n||!e){toast('Nombre y correo requeridos','error');return;}
   if (!cfg.tecnicos.find(t=>t.email===e)) { cfg.tecnicos.push({nombre:n,email:e,rol:r}); saveCfg(); }
   document.getElementById('cfg-tec-n').value=''; document.getElementById('cfg-tec-e').value='';
+  // Sincronizar correo del jefe con Apps Script
+  const jefe = cfg.tecnicos.find(t=>t.rol==='jefe');
+  if (jefe && SCRIPT_URL) api('setJefeEmail', {email: jefe.email}).catch(()=>{});
   renderCfgTec();
 }
 function delTec(e){cfg.tecnicos=cfg.tecnicos.filter(t=>t.email!==e);saveCfg();renderCfgTec();}
@@ -758,7 +790,6 @@ function toast(msg,type=''){
 function abrirNuevo(){
   editingId=null;
   document.getElementById('modal-tk-title').textContent='Nuevo ticket de soporte';
-  // Limpiar
   ['f-prod','f-marca','f-area','f-serie','f-cliente','f-contacto','f-desc','f-nota','f-resol'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-prio').value='media';
   document.getElementById('f-est').value='reporte';
@@ -767,9 +798,10 @@ function abrirNuevo(){
   document.getElementById('f-cierre-lbl').textContent='—';
   document.getElementById('f-cierre-g').style.display='none';
   document.getElementById('f-resol-g').style.display='none';
-  // Poblar selects
+  // Roles
+  document.getElementById('f-tec-g').style.display = esJefeOAdmin() ? '' : 'none';
+  document.getElementById('f-est-g').style.display = puedeCambiarEstado() ? '' : 'none';
   poblarTecnicos(); poblarAsesores();
-  // Datalists
   const dl=document.getElementById('list-marcas'); dl.innerHTML='';
   cfg.marcas.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
   openModal('modal-tk');
@@ -892,24 +924,28 @@ function editTicket(id){
   document.getElementById('f-resol').value    = t.resolucion||'';
   document.getElementById('f-est').value      = t.estado||'reporte';
 
+  // Roles
+  document.getElementById('f-tec-g').style.display = esJefeOAdmin() ? '' : 'none';
+  document.getElementById('f-est-g').style.display = puedeCambiarEstado() ? '' : 'none';
+
   // Datalist marcas
   const dl=document.getElementById('list-marcas'); dl.innerHTML='';
   cfg.marcas.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
 
   // Fechas
-  document.getElementById('f-apertura-lbl').textContent   = t.apertura?fmtDate(t.apertura):'—';
-  document.getElementById('f-asign-lbl').textContent      = t.fechaAsignacion?fmtDate(t.fechaAsignacion):'Sin asignar aún';
-  document.getElementById('f-cierre-lbl').textContent     = t.cierre?fmtDate(t.cierre):'Se registra al cerrar';
-  document.getElementById('f-cierre-g').style.display     = t.estado==='cerrado'?'':'none';
-  document.getElementById('f-resol-g').style.display      = t.estado==='cerrado'?'':'none';
+  document.getElementById('f-apertura-lbl').textContent = t.apertura?fmtDate(t.apertura):'—';
+  document.getElementById('f-asign-lbl').textContent    = t.fechaAsignacion?fmtDate(t.fechaAsignacion):'Sin asignar aún';
+  document.getElementById('f-cierre-lbl').textContent   = t.cierre?fmtDate(t.cierre):'Se registra al cerrar';
+  document.getElementById('f-cierre-g').style.display   = t.estado==='cerrado'?'':'none';
+  document.getElementById('f-resol-g').style.display    = t.estado==='cerrado'?'':'none';
 
   // Técnicos y asesores
   poblarTecnicos();
-  if(t.tecnico&&t.tecnicoEmail)document.getElementById('f-tec').value=t.tecnico+'|'+t.tecnicoEmail;
+  if(t.tecnico&&t.tecnicoEmail) document.getElementById('f-tec').value=t.tecnico+'|'+t.tecnicoEmail;
   else if(t.tecnico){const o=document.createElement('option');o.value=t.tecnico+'|';o.textContent=t.tecnico;document.getElementById('f-tec').appendChild(o);document.getElementById('f-tec').value=t.tecnico+'|';}
 
   poblarAsesores();
-  if(t.asesor&&t.asesorEmail)document.getElementById('f-asesor').value=t.asesor+'|'+t.asesorEmail;
+  if(t.asesor&&t.asesorEmail) document.getElementById('f-asesor').value=t.asesor+'|'+t.asesorEmail;
   document.getElementById('f-asesor-email').textContent=t.asesorEmail||'—';
 
   openModal('modal-tk');
