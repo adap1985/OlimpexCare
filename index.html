@@ -731,19 +731,21 @@ function openModal(id) {
     }
   }
   if (id === 'modal-ticket') {
-    editingTicketId = null;
-    document.getElementById('tk-title').textContent = 'Nuevo ticket de soporte';
-    const now = new Date(); now.setSeconds(0, 0);
-    // Fecha apertura automática — solo mostrar
-    document.getElementById('tk-ap-display').textContent = fmtDateNow(now);
-    document.getElementById('tk-ci-display').textContent = '—';
-    ['tk-desc','tk-res','tk-tec'].forEach(f => document.getElementById(f).value = '');
-    document.getElementById('tk-ci-g').style.display = 'none';
-    document.getElementById('tk-res-g').style.display = 'none';
-    document.getElementById('tk-est-g').style.display = 'none';
-    document.getElementById('tk-prio').value = 'media';
-    populateSelect('tk-prod', db.productos, 'codigo', p => p.nombre + ' (' + p.codigo + ')');
-    document.getElementById('tk-sn').innerHTML = '<option value="">Sin serie / N/A</option>';
+    if (!editingTicketId) {
+      // Solo resetear si es ticket NUEVO
+      editingTicketId = null;
+      document.getElementById('tk-title').textContent = 'Nuevo ticket de soporte';
+      const now = new Date(); now.setSeconds(0, 0);
+      document.getElementById('tk-ap-display').textContent = fmtDateNow(now);
+      document.getElementById('tk-ci-display').textContent = '—';
+      ['tk-desc','tk-res','tk-tec'].forEach(f => document.getElementById(f).value = '');
+      document.getElementById('tk-ci-g').style.display = 'none';
+      document.getElementById('tk-res-g').style.display = 'none';
+      document.getElementById('tk-est-g').style.display = 'none';
+      document.getElementById('tk-prio').value = 'media';
+      populateSelect('tk-prod', db.productos, 'codigo', p => p.nombre + ' (' + p.codigo + ')');
+      document.getElementById('tk-sn').innerHTML = '<option value="">Sin serie / N/A</option>';
+    }
   }
   document.getElementById(id).classList.add('open');
 }
@@ -1297,23 +1299,36 @@ function editTicket(id) {
   const t = db.tickets.find(x => x.id === id);
   if (!t) return;
   editingTicketId = id;
-  document.getElementById('tk-title').textContent = 'Editar ticket ' + t.ticketNum;
+
+  // Primero abrir el modal (sin resetear porque editingTicketId ya está seteado)
+  document.getElementById('modal-ticket').classList.add('open');
+
+  // Título
+  document.getElementById('tk-title').textContent = 'Actualizar ticket ' + t.ticketNum;
+
+  // Poblar producto y serie
   populateSelect('tk-prod', db.productos, 'codigo', p => p.nombre + ' (' + p.codigo + ')');
-  document.getElementById('tk-prod').value  = t.codigo;
+  document.getElementById('tk-prod').value = t.codigo;
   onTkProd();
-  setTimeout(() => { document.getElementById('tk-sn').value = t.serie || ''; }, 60);
-  document.getElementById('tk-tec').value   = t.tecnico;
-  document.getElementById('tk-prio').value  = t.prioridad;
-  // Mostrar fechas como texto — no editables
+  setTimeout(() => { document.getElementById('tk-sn').value = t.serie || ''; }, 80);
+
+  // Campos editables
+  document.getElementById('tk-tec').value  = t.tecnico;
+  document.getElementById('tk-prio').value = t.prioridad;
+  document.getElementById('tk-desc').value = t.desc;
+  document.getElementById('tk-res').value  = t.resolucion || '';
+  document.getElementById('tk-est').value  = t.estado;
+
+  // Fechas — solo lectura
   document.getElementById('tk-ap-display').textContent = t.apertura ? fmtDate(t.apertura) : '—';
-  document.getElementById('tk-ci-display').textContent = t.cierre ? fmtDate(t.cierre) : 'Se registra al cerrar';
-  document.getElementById('tk-desc').value  = t.desc;
-  document.getElementById('tk-res').value   = t.resolucion || '';
+  document.getElementById('tk-ci-display').textContent = t.cierre
+    ? fmtDate(t.cierre)
+    : (t.estado === 'cerrado' ? fmtDateNow(new Date()) : 'Se registra al cerrar');
+
+  // Mostrar campos de cierre y resolución
   document.getElementById('tk-ci-g').style.display  = '';
   document.getElementById('tk-res-g').style.display = '';
   document.getElementById('tk-est-g').style.display = '';
-  document.getElementById('tk-est').value   = t.estado;
-  openModal('modal-ticket');
 }
 
 function openMovForProd(codigo) {
