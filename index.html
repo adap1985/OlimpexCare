@@ -631,19 +631,36 @@ function renderCfgMarcas(){
 // ══════════════════════════════════════════════
 async function api(action, body=null) {
   if (!SCRIPT_URL){nav('config');return null;}
-  // Apps Script no soporta preflight CORS — enviamos todo como GET
-  // Los datos van codificados en el parámetro 'payload'
-  let url = SCRIPT_URL + '?action=' + action;
-  if (body) url += '&payload=' + encodeURIComponent(JSON.stringify(body));
-  const res = await fetch(url, { method: 'GET', redirect: 'follow' });
-  const text = await res.text();
-  try {
-    const data = JSON.parse(text);
-    if (data.error) throw new Error(data.error);
-    return data;
-  } catch(e) {
-    throw new Error('Error de conexión con Google Sheets. Verifica la URL en Configuración.');
-  }
+  return new Promise((resolve, reject) => {
+    const cbName = 'oc_cb_' + Date.now();
+    let url = SCRIPT_URL + '?action=' + action + '&callback=' + cbName;
+    if (body) url += '&payload=' + encodeURIComponent(JSON.stringify(body));
+
+    // Timeout de 15 segundos
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Tiempo de espera agotado. Verifica la URL en Configuración.'));
+    }, 15000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      const s = document.getElementById(cbName);
+      if (s) s.remove();
+    }
+
+    window[cbName] = function(data) {
+      cleanup();
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data);
+    };
+
+    const script = document.createElement('script');
+    script.id = cbName;
+    script.src = url;
+    script.onerror = () => { cleanup(); reject(new Error('No se pudo conectar con Google Sheets. Verifica la URL.')); };
+    document.head.appendChild(script);
+  });
 }
 
 async function loadData() {
