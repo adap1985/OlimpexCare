@@ -589,11 +589,9 @@ function checkSession() {
 // CONFIG & DB
 // ══════════════════════════════════════════════
 let SCRIPT_URL = localStorage.getItem('oc_script_url') || 'https://script.google.com/a/macros/olimpexperu.com/s/AKfycbwHys9_QTbgDjjJlEQX6QFfJru6cz_x2SE_EYWcUwtx_vDp61ErUFrM2q9OC3dYBfslcQ/exec';
-let cfg = JSON.parse(localStorage.getItem('oc_cfg') || '{"marcas":[],"tecnicos":[],"asesores":[]}');
+let cfg = { marcas:[], tecnicos:[], asesores:[] };
 let db  = { tickets: [] };
 let editingId = null;
-
-function saveCfg() { localStorage.setItem('oc_cfg', JSON.stringify(cfg)); }
 
 function saveConfig() {
   const url = document.getElementById('cfg-url').value.trim();
@@ -602,20 +600,27 @@ function saveConfig() {
   toast('URL guardada', 'success'); loadData();
 }
 
+// ── Guardar config en Sheets ──
+async function pushConfig() {
+  try {
+    await api('saveConfig', cfg);
+    toast('Configuración guardada', 'success');
+    aplicarRol();
+  } catch(e) { toast('Error al guardar config: '+e.message,'error'); }
+}
+
 // ── Técnicos ──
 function addTec() {
   const n=document.getElementById('cfg-tec-n').value.trim();
   const e=document.getElementById('cfg-tec-e').value.trim();
   const r=document.getElementById('cfg-tec-r').value;
   if (!n||!e){toast('Nombre y correo requeridos','error');return;}
-  if (!cfg.tecnicos.find(t=>t.email===e)) { cfg.tecnicos.push({nombre:n,email:e,rol:r}); saveCfg(); }
+  if (!cfg.tecnicos.find(t=>t.email===e)) cfg.tecnicos.push({nombre:n,email:e,rol:r});
   document.getElementById('cfg-tec-n').value=''; document.getElementById('cfg-tec-e').value='';
-  // Sincronizar correo del jefe con Apps Script
-  const jefe = cfg.tecnicos.find(t=>t.rol==='jefe');
-  if (jefe && SCRIPT_URL) api('setJefeEmail', {email: jefe.email}).catch(()=>{});
   renderCfgTec();
+  pushConfig();
 }
-function delTec(e){cfg.tecnicos=cfg.tecnicos.filter(t=>t.email!==e);saveCfg();renderCfgTec();}
+function delTec(e){cfg.tecnicos=cfg.tecnicos.filter(t=>t.email!==e);renderCfgTec();pushConfig();}
 function renderCfgTec(){
   document.getElementById('cfg-tec-list').innerHTML=cfg.tecnicos.length
     ?cfg.tecnicos.map(t=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
@@ -630,11 +635,12 @@ function addAs(){
   const n=document.getElementById('cfg-as-n').value.trim();
   const e=document.getElementById('cfg-as-e').value.trim();
   if(!n||!e){toast('Nombre y correo requeridos','error');return;}
-  if(!cfg.asesores.find(a=>a.email===e)){cfg.asesores.push({nombre:n,email:e});saveCfg();}
+  if(!cfg.asesores.find(a=>a.email===e)) cfg.asesores.push({nombre:n,email:e});
   document.getElementById('cfg-as-n').value=''; document.getElementById('cfg-as-e').value='';
   renderCfgAs();
+  pushConfig();
 }
-function delAs(e){cfg.asesores=cfg.asesores.filter(a=>a.email!==e);saveCfg();renderCfgAs();}
+function delAs(e){cfg.asesores=cfg.asesores.filter(a=>a.email!==e);renderCfgAs();pushConfig();}
 function renderCfgAs(){
   document.getElementById('cfg-as-list').innerHTML=cfg.asesores.length
     ?cfg.asesores.map(a=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
@@ -648,10 +654,11 @@ function renderCfgAs(){
 function addMarca(){
   const v=document.getElementById('cfg-marca-n').value.trim();
   if(!v)return;
-  if(!cfg.marcas.includes(v)){cfg.marcas.push(v);saveCfg();}
+  if(!cfg.marcas.includes(v)) cfg.marcas.push(v);
   document.getElementById('cfg-marca-n').value=''; renderCfgMarcas();
+  pushConfig();
 }
-function delMarca(m){cfg.marcas=cfg.marcas.filter(x=>x!==m);saveCfg();renderCfgMarcas();}
+function delMarca(m){cfg.marcas=cfg.marcas.filter(x=>x!==m);renderCfgMarcas();pushConfig();}
 function renderCfgMarcas(){
   document.getElementById('cfg-marca-list').innerHTML=cfg.marcas.map(m=>
     `<span style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px;display:inline-flex;align-items:center;gap:5px">${m}<span onclick="delMarca('${m}')" style="cursor:pointer;color:var(--text3);font-size:11px">✕</span></span>`
@@ -704,6 +711,13 @@ async function loadData() {
     const data = await api('getAll');
     if (!data) return;
     db.tickets = data.tickets || [];
+    // Cargar config desde Sheets — disponible para todos los usuarios
+    if (data.config) {
+      cfg.tecnicos = data.config.tecnicos || [];
+      cfg.asesores = data.config.asesores || [];
+      cfg.marcas   = data.config.marcas   || [];
+      aplicarRol(); // Re-evaluar rol con config actualizada
+    }
     updateBadge();
     document.getElementById('sync-time').textContent = 'Sync: '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
     renderCurrentPage();
