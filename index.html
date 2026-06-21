@@ -220,6 +220,7 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
   <span class="nav-section">Principal</span>
   <div class="nav-item active" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
   <div class="nav-item" onclick="nav('tickets')"><i class="ti ti-headset"></i>Tickets <span class="nav-badge" id="badge-open" style="display:none">0</span></div>
+  <div class="nav-item" onclick="nav('informes')"><i class="ti ti-file-text"></i>Informes</div>
   <div class="nav-item" onclick="nav('reportes')"><i class="ti ti-chart-bar"></i>Reportes SLA</div>
   <span class="nav-section">Configuración</span>
   <div class="nav-item" id="nav-config" onclick="nav('config')"><i class="ti ti-settings"></i>Configuración</div>
@@ -310,6 +311,33 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
         <th>SLA</th><th>Estado</th><th></th>
       </tr></thead>
       <tbody id="tk-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══ INFORMES ══ -->
+<div id="page-informes" class="page">
+  <div class="topbar">
+    <h2>Informes técnicos</h2>
+    <div class="topbar-actions">
+      <button class="btn" onclick="loadData()"><i class="ti ti-refresh"></i>Actualizar</button>
+    </div>
+  </div>
+  <div class="search-row">
+    <div class="search-wrap">
+      <i class="ti ti-search"></i>
+      <input id="inf-q" type="text" placeholder="Buscar por N° informe, ticket, cliente, técnico..." oninput="renderInformes()">
+    </div>
+    <select class="fsel" id="inf-tec" onchange="renderInformes()"><option value="">Todos los técnicos</option></select>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>N° Informe</th><th>Ticket</th><th>Cliente</th>
+        <th>Producto</th><th>Marca</th><th>Técnico</th>
+        <th>Fecha informe</th><th>Fecha cierre</th>
+      </tr></thead>
+      <tbody id="inf-tbody"></tbody>
     </table></div>
   </div>
 </div>
@@ -490,6 +518,17 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
   </div>
   <div class="form-group" id="f-resol-g" style="display:none"><label>Resolución / acción tomada</label>
     <textarea id="f-resol" placeholder="Describe la solución aplicada..."></textarea>
+  </div>
+  <div id="f-informe-g" style="display:none">
+    <div class="form-section"><i class="ti ti-file-text"></i>Informe técnico</div>
+    <div class="form-grid-2">
+      <div class="form-group"><label>N° de informe <span class="required">*</span></label>
+        <input id="f-informe-num" type="text" placeholder="Ej: INF-2025-001">
+      </div>
+      <div class="form-group"><label>Fecha del informe</label>
+        <input id="f-informe-fecha" type="date">
+      </div>
+    </div>
   </div>
 
   <div class="modal-footer">
@@ -741,6 +780,7 @@ function renderCurrentPage() {
   const p  = id.replace('page-','');
   if (p==='dashboard') renderDashboard();
   if (p==='tickets')   renderTickets();
+  if (p==='informes')  renderInformes();
   if (p==='reportes')  renderReportes();
   if (p==='config')    { renderCfgTec(); renderCfgAs(); renderCfgMarcas(); if(SCRIPT_URL)document.getElementById('cfg-url').value=SCRIPT_URL; }
 }
@@ -804,7 +844,7 @@ function toast(msg,type=''){
 function abrirNuevo(){
   editingId=null;
   document.getElementById('modal-tk-title').textContent='Nuevo ticket de soporte';
-  ['f-prod','f-marca','f-area','f-serie','f-cliente','f-contacto','f-desc','f-nota','f-resol'].forEach(id=>document.getElementById(id).value='');
+  ['f-prod','f-marca','f-area','f-serie','f-cliente','f-contacto','f-desc','f-nota','f-resol','f-informe-num','f-informe-fecha'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-prio').value='media';
   document.getElementById('f-est').value='reporte';
   document.getElementById('f-apertura-lbl').textContent=fmtDateNow(new Date());
@@ -840,8 +880,12 @@ function onTecnico(){
 }
 function onEstado(){
   const est=document.getElementById('f-est').value;
-  document.getElementById('f-cierre-g').style.display=est==='cerrado'?'':'none';
-  document.getElementById('f-resol-g').style.display=est==='cerrado'?'':'none';
+  const esCerrado=est==='cerrado';
+  document.getElementById('f-cierre-g').style.display  = esCerrado?'':'none';
+  document.getElementById('f-resol-g').style.display   = esCerrado?'':'none';
+  document.getElementById('f-informe-g').style.display = esCerrado?'':'none';
+  if(esCerrado && !document.getElementById('f-informe-fecha').value)
+    document.getElementById('f-informe-fecha').value=new Date().toISOString().slice(0,10);
 }
 
 function openModal(id){document.getElementById(id).classList.add('open');}
@@ -865,7 +909,8 @@ async function saveTicket(){
   const asEmail = asesorV.includes('|')?asesorV.split('|')[1]:'';
 
   const existing = editingId ? db.tickets.find(t=>t.id===editingId) : null;
-  const estadoAnt= existing ? existing.estado : null;
+  const estadoAnt    = existing ? existing.estado  : null;
+  const tecnicoAnt   = existing ? (existing.tecnico||'') : '';
 
   const apertura = existing ? existing.apertura : new Date().toISOString();
 
@@ -899,8 +944,11 @@ async function saveTicket(){
     desc,
     notaTecnico:     document.getElementById('f-nota').value.trim(),
     resolucion:      document.getElementById('f-resol').value.trim(),
+    informeNum:      document.getElementById('f-informe-num').value.trim(),
+    informeFecha:    document.getElementById('f-informe-fecha').value||null,
     slaHrs:          48,
-    estadoAnterior:  estadoAnt
+    estadoAnterior:  estadoAnt,
+    tecnicoAnterior: tecnicoAnt
   };
 
   showLoading();
@@ -952,6 +1000,9 @@ function editTicket(id){
   document.getElementById('f-cierre-lbl').textContent   = t.cierre?fmtDate(t.cierre):'Se registra al cerrar';
   document.getElementById('f-cierre-g').style.display   = t.estado==='cerrado'?'':'none';
   document.getElementById('f-resol-g').style.display    = t.estado==='cerrado'?'':'none';
+  document.getElementById('f-informe-g').style.display  = t.estado==='cerrado'?'':'none';
+  document.getElementById('f-informe-num').value   = t.informeNum||'';
+  document.getElementById('f-informe-fecha').value = t.informeFecha||'';
 
   // Técnicos y asesores
   poblarTecnicos();
@@ -968,6 +1019,38 @@ function editTicket(id){
 // ══════════════════════════════════════════════
 // RENDER DASHBOARD
 // ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// RENDER INFORMES
+// ══════════════════════════════════════════════
+function renderInformes(){
+  const q   = (document.getElementById('inf-q').value||'').toLowerCase();
+  const ftec = document.getElementById('inf-tec').value;
+
+  // Poblar filtro técnicos
+  const ts=document.getElementById('inf-tec'); const tc=ts.value;
+  ts.innerHTML='<option value="">Todos los técnicos</option>';
+  cfg.tecnicos.forEach(t=>{const o=document.createElement('option');o.value=t.nombre;o.textContent=t.nombre;ts.appendChild(o);}); ts.value=tc;
+
+  // Solo tickets cerrados con número de informe
+  let tks = db.tickets.filter(t=>t.estado==='cerrado');
+  if(ftec) tks=tks.filter(t=>t.tecnico===ftec);
+  if(q) tks=tks.filter(t=>(t.informeNum+t.ticketNum+t.cliente+t.producto+t.tecnico).toLowerCase().includes(q));
+  tks=[...tks].sort((a,b)=>new Date(b.cierre)-new Date(a.cierre));
+
+  document.getElementById('inf-tbody').innerHTML=tks.length
+    ?tks.map(t=>`<tr>
+      <td><span style="font-family:monospace;font-weight:600;font-size:13px">${t.informeNum||'<span style="color:var(--text3);font-weight:400">Sin informe</span>'}</span></td>
+      <td><span style="font-weight:600;font-size:12px">${t.ticketNum}</span></td>
+      <td>${t.cliente||'—'}</td>
+      <td style="font-size:13px">${t.producto||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${t.marca||'—'}</td>
+      <td style="font-size:13px">${t.tecnico||'—'}</td>
+      <td style="font-size:12px;white-space:nowrap">${t.informeFecha?new Date(t.informeFecha+'T12:00:00').toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'}):'—'}</td>
+      <td style="font-size:12px;white-space:nowrap">${fmtDate(t.cierre)}</td>
+    </tr>`).join('')
+    :'<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text2)">Sin informes registrados</td></tr>';
+}
+
 function renderDashboard(){
   document.getElementById('dash-fecha').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   const abiertos=db.tickets.filter(t=>t.estado!=='cerrado');
