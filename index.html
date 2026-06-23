@@ -666,7 +666,7 @@ function saveConfig() {
 // ── Guardar config en Sheets ──
 async function pushConfig() {
   try {
-    await api('saveConfig', { tecnicos: cfg.tecnicos, asesores: cfg.asesores, marcas: cfg.marcas, slaAsignacion: cfg.slaAsignacion||24 });
+    await apiWithRetry('saveConfig', { tecnicos: cfg.tecnicos, asesores: cfg.asesores, marcas: cfg.marcas, slaAsignacion: cfg.slaAsignacion||24 });
     toast('Configuración guardada', 'success');
     aplicarRol();
   } catch(e) { toast('Error al guardar config: '+e.message,'error'); }
@@ -765,8 +765,8 @@ async function api(action, body=null) {
 
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error('Tiempo agotado — verifica la URL en Configuración'));
-    }, 20000);
+      reject(new Error('Tiempo agotado — intenta de nuevo'));
+    }, 35000); // 35 segundos para dar tiempo al script en frío
 
     function cleanup() {
       clearTimeout(timeout);
@@ -786,10 +786,22 @@ async function api(action, body=null) {
     script.src = url;
     script.onerror = () => {
       cleanup();
-      reject(new Error('No se pudo conectar. Verifica la URL en Configuración.'));
+      reject(new Error('Error de conexión'));
     };
     document.head.appendChild(script);
   });
+}
+
+// Wrapper con reintento automático
+async function apiWithRetry(action, body=null, intentos=2) {
+  for (let i = 0; i < intentos; i++) {
+    try {
+      return await api(action, body);
+    } catch(e) {
+      if (i === intentos - 1) throw e;
+      await new Promise(r => setTimeout(r, 3000)); // espera 3s antes de reintentar
+    }
+  }
 }
 
 async function loadData(silent=false) {
@@ -797,7 +809,7 @@ async function loadData(silent=false) {
   if (!silent) showLoading();
   else document.getElementById('sync-time').textContent = 'Actualizando...';
   try {
-    const data = await api('getAll');
+    const data = await apiWithRetry('getAll');
     if (!data) return;
     db.tickets = data.tickets || [];
     // Cargar config desde Sheets — disponible para todos los usuarios
@@ -1013,7 +1025,7 @@ async function saveTicket(){
   const btnGuardar = document.querySelector('#modal-tk .btn-primary');
   if(btnGuardar){ btnGuardar.disabled=true; btnGuardar.innerHTML='<i class="ti ti-loader-2" style="animation:spin .7s linear infinite"></i> Guardando...'; }
   try {
-    await api(editingId?'updateTicket':'saveTicket', tk);
+    await apiWithRetry(editingId?'updateTicket':'saveTicket', tk);
     if(editingId){const i=db.tickets.findIndex(t=>t.id===editingId);db.tickets[i]=tk;}
     else db.tickets.push(tk);
     updateBadge();
