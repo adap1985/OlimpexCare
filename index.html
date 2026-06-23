@@ -548,6 +548,14 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
     </div>
   </div>
 
+  <div id="f-historial-g" style="display:none;margin-top:.75rem">
+    <div class="form-section"><i class="ti ti-history"></i>Historial y tiempos por estado</div>
+    <!-- Resumen tiempos -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:.75rem" id="f-tiempos-resumen"></div>
+    <!-- Timeline -->
+    <div id="f-historial-tl" style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:.75rem 1rem"></div>
+  </div>
+
   <div class="modal-footer">
     <button class="btn" onclick="closeModal('modal-tk')">Cancelar</button>
     <button class="btn btn-primary" onclick="saveTicket()"><i class="ti ti-check"></i>Guardar</button>
@@ -997,7 +1005,8 @@ async function saveTicket(){
     slaHrs:          getSlacierre(document.getElementById('f-marca').value.trim()),
     slaAsignacion:   cfg.slaAsignacion||24,
     estadoAnterior:  estadoAnt,
-    tecnicoAnterior: tecnicoAnt
+    tecnicoAnterior: tecnicoAnt,
+    historial:       existing ? (existing.historial||'[]') : '[]'
   };
 
   showLoading();
@@ -1066,6 +1075,9 @@ function editTicket(id){
   if(t.asesor&&t.asesorEmail) document.getElementById('f-asesor').value=t.asesor+'|'+t.asesorEmail;
   document.getElementById('f-asesor-email').textContent=t.asesorEmail||'—';
 
+  // Historial y tiempos
+  renderHistorial(t);
+
   openModal('modal-tk');
 }
 
@@ -1107,6 +1119,85 @@ function renderInformes(){
       <td style="font-size:12px;white-space:nowrap">${fmtDate(t.cierre)}</td>
     </tr>`).join('')
     :'<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text2)">Sin informes registrados</td></tr>';
+}
+
+// ══════════════════════════════════════════════
+// HISTORIAL Y TIEMPOS POR ESTADO
+// ══════════════════════════════════════════════
+const ESTADOS_OLIMPEX = ['en_revision','piezas_importacion'];
+const ESTADOS_CLIENTE = ['pendiente','cita_coordinada','ayuda_asesor'];
+
+function calcTiemposHistorial(historial) {
+  // Retorna { totalOlimpex, totalCliente, porEstado: [{estado, hrs, tipo}] }
+  const result = { totalOlimpex: 0, totalCliente: 0, totalAsignacion: 0, porEstado: [] };
+  if (!historial || !historial.length) return result;
+
+  for (let i = 0; i < historial.length; i++) {
+    const h    = historial[i];
+    const sig  = historial[i + 1];
+    const ini  = new Date(h.fecha);
+    const fin  = sig ? new Date(sig.fecha) : new Date();
+    const hrs  = Math.round((fin - ini) / 360000) / 10;
+    const tipo = ESTADOS_OLIMPEX.includes(h.estado) ? 'olimpex'
+               : ESTADOS_CLIENTE.includes(h.estado) ? 'cliente' : 'neutral';
+    if (tipo === 'olimpex') result.totalOlimpex += hrs;
+    if (tipo === 'cliente') result.totalCliente += hrs;
+    result.porEstado.push({ estado: h.estado, hrs, tipo, nota: h.nota, usuario: h.usuario, fecha: h.fecha, estadoAnt: h.estadoAnt });
+  }
+  return result;
+}
+
+function renderHistorial(ticket) {
+  const hist = (() => { try { return JSON.parse(ticket.historial||'[]'); } catch(e){return[];} })();
+  const tiempos = calcTiemposHistorial(hist);
+  const slaHrs = Number(ticket.slaHrs)||48;
+
+  // Si no hay historial, ocultar
+  if (!hist.length) { document.getElementById('f-historial-g').style.display='none'; return; }
+  document.getElementById('f-historial-g').style.display='';
+
+  // Resumen
+  const pct = Math.min(100, Math.round(tiempos.totalOlimpex / slaHrs * 100));
+  const cls = pct > 100 ? 'var(--red)' : pct > 75 ? 'var(--amber)' : 'var(--green)';
+  document.getElementById('f-tiempos-resumen').innerHTML=`
+    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:.6rem .85rem">
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:3px">Tiempo total</div>
+      <div style="font-size:18px;font-weight:500">${fmtHrs(tiempos.totalOlimpex+tiempos.totalCliente)}</div>
+    </div>
+    <div style="background:#E1F5EE;border-radius:var(--border-radius-md);padding:.6rem .85rem">
+      <div style="font-size:11px;color:#085041;margin-bottom:3px"><i class="ti ti-building" style="font-size:12px"></i> Tiempo Olimpex</div>
+      <div style="font-size:18px;font-weight:500;color:#085041">${fmtHrs(tiempos.totalOlimpex)}</div>
+      <div style="height:4px;background:rgba(0,0,0,0.1);border-radius:2px;margin-top:4px;overflow:hidden"><div style="height:100%;background:${cls};width:${pct}%;border-radius:2px"></div></div>
+      <div style="font-size:10px;color:#085041;margin-top:2px">${pct}% del SLA (${slaHrs}h)</div>
+    </div>
+    <div style="background:#FAEEDA;border-radius:var(--border-radius-md);padding:.6rem .85rem">
+      <div style="font-size:11px;color:#633806;margin-bottom:3px"><i class="ti ti-user" style="font-size:12px"></i> Tiempo cliente</div>
+      <div style="font-size:18px;font-weight:500;color:#633806">${fmtHrs(tiempos.totalCliente)}</div>
+      <div style="font-size:10px;color:#633806;margin-top:2px">No penaliza SLA</div>
+    </div>
+  `;
+
+  // Timeline
+  const etiq = { pendiente:'Pendiente', cita_coordinada:'Cita coordinada', en_revision:'En revisión', ayuda_asesor:'Ayuda del asesor', piezas_importacion:'Piezas en importación', cerrado:'Cerrado' };
+  const colores = { olimpex:'#1D9E75', cliente:'#EF9F27', neutral:'#B4B2A9' };
+
+  document.getElementById('f-historial-tl').innerHTML=`
+    <div style="position:relative;padding-left:16px">
+      <div style="position:absolute;left:4px;top:0;bottom:0;width:1px;background:var(--color-border-tertiary)"></div>
+      ${tiempos.porEstado.map((e,i)=>`
+        <div style="position:relative;padding:6px 0 8px 12px">
+          <div style="position:absolute;left:-12px;top:9px;width:8px;height:8px;border-radius:50%;background:${colores[e.tipo]};border:1.5px solid var(--color-background-secondary)"></div>
+          <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:2px">
+            ${fmtDate(e.fecha)}
+            ${e.tipo!=='neutral'?`<span style="display:inline-flex;align-items:center;font-family:monospace;font-size:10px;padding:1px 6px;border-radius:3px;background:${e.tipo==='olimpex'?'#E1F5EE':'#FAEEDA'};color:${e.tipo==='olimpex'?'#085041':'#633806'};margin-left:4px">${fmtHrs(e.hrs)} ${e.tipo==='olimpex'?'Olimpex':'cliente'}</span>`:''}
+          </div>
+          <div style="font-size:13px;font-weight:500">${e.estadoAnt?etiq[e.estadoAnt]||e.estadoAnt+' →':''} ${etiq[e.estado]||e.estado}</div>
+          ${e.nota?`<div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px;font-style:italic">"${e.nota}"</div>`:''}
+          ${e.usuario?`<div style="font-size:11px;color:var(--color-text-secondary);margin-top:1px">${e.usuario}</div>`:''}
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 function renderDashboard(){
@@ -1243,9 +1334,20 @@ function renderReportes(){
 
   const cerrados=tks.filter(t=>t.estado==='cerrado'&&t.apertura&&t.cierre);
   const abiertos=tks.filter(t=>t.estado!=='cerrado');
-  const cumplieron=cerrados.filter(t=>calcHrs(t.apertura,t.cierre)<=(Number(t.slaHrs)||48));
+
+  // Calcular tiempo Olimpex de cada ticket cerrado
+  function getHrsOlimpex(t) {
+    try {
+      const hist = JSON.parse(t.historial||'[]');
+      const tiempos = calcTiemposHistorial(hist);
+      return tiempos.totalOlimpex > 0 ? tiempos.totalOlimpex : calcHrs(t.apertura, t.cierre);
+    } catch(e) { return calcHrs(t.apertura, t.cierre); }
+  }
+
+  const cumplieron=cerrados.filter(t=>getHrsOlimpex(t)<=(Number(t.slaHrs)||48));
   const pct=cerrados.length?Math.round(cumplieron.length/cerrados.length*100):0;
   const avgTotal=cerrados.length?(cerrados.reduce((s,t)=>s+calcHrs(t.apertura,t.cierre),0)/cerrados.length).toFixed(1):'—';
+  const avgOlimpex=cerrados.length?(cerrados.reduce((s,t)=>s+getHrsOlimpex(t),0)/cerrados.length).toFixed(1):'—';
   const conAsign=tks.filter(t=>t.fechaAsignacion&&t.apertura);
   const avgAsign=conAsign.length?(conAsign.reduce((s,t)=>s+calcHrs(t.apertura,t.fechaAsignacion),0)/conAsign.length).toFixed(1):'—';
 
@@ -1254,7 +1356,8 @@ function renderReportes(){
     <div class="metric"><div class="label">Abiertos</div><div class="value" style="color:var(--amber)">${abiertos.length}</div></div>
     <div class="metric"><div class="label">Cerrados</div><div class="value" style="color:var(--green)">${cerrados.length}</div></div>
     <div class="metric"><div class="label">% SLA cumplido</div><div class="value" style="color:${pct>=80?'var(--green)':pct>=60?'var(--amber)':'var(--red)'}">${pct}%</div></div>
-    <div class="metric"><div class="label">T. prom. total</div><div class="value" style="font-size:16px">${avgTotal}</div><div class="sub">horas</div></div>
+    <div class="metric"><div class="label">T. prom. total</div><div class="value" style="font-size:16px">${avgTotal}</div><div class="sub">horas (con espera cliente)</div></div>
+    <div class="metric"><div class="label">T. prom. Olimpex</div><div class="value" style="font-size:16px;color:var(--green)">${avgOlimpex}</div><div class="sub">horas (solo trabajo real)</div></div>
     <div class="metric"><div class="label">T. prom. asignación</div><div class="value" style="font-size:16px">${avgAsign}</div><div class="sub">horas</div></div>
   `;
 
@@ -1264,7 +1367,7 @@ function renderReportes(){
     const k=t.tecnico||'Sin asignar';
     if(!porTec[k])porTec[k]={total:0,cerrados:0,cumplieron:0,horas:[]};
     porTec[k].total++;
-    if(t.estado==='cerrado'&&t.cierre){porTec[k].cerrados++;const h=calcHrs(t.apertura,t.cierre);porTec[k].horas.push(h);if(h<=(Number(t.slaHrs)||48))porTec[k].cumplieron++;}
+    if(t.estado==='cerrado'&&t.cierre){porTec[k].cerrados++;const h=getHrsOlimpex(t);porTec[k].horas.push(h);if(h<=(Number(t.slaHrs)||48))porTec[k].cumplieron++;}
   });
   document.getElementById('rep-por-tec').innerHTML=Object.keys(porTec).length
     ?`<table style="width:100%;font-size:12px;border-collapse:collapse">
@@ -1294,17 +1397,18 @@ function renderReportes(){
 
   // Tabla detalle
   document.getElementById('rep-tbody').innerHTML=cerrados.sort((a,b)=>new Date(b.apertura)-new Date(a.apertura)).map(t=>{
-    const hT=calcHrs(t.apertura,t.cierre);
+    const hTotal=calcHrs(t.apertura,t.cierre);
+    const hOlimpex=getHrsOlimpex(t);
     const hA=t.fechaAsignacion?calcHrs(t.apertura,t.fechaAsignacion):null;
     const sla=Number(t.slaHrs)||48;
-    const ok=hT<=sla;
+    const ok=hOlimpex<=sla;
     return`<tr>
       <td style="font-weight:600;font-size:12px">${t.ticketNum}</td>
       <td style="font-size:12px">${t.cliente}</td>
       <td style="font-size:12px">${t.tecnico||'—'}</td>
       <td style="font-size:11px;white-space:nowrap">${fmtDate(t.apertura)}</td>
       <td>${hA!==null?timeChip(hA,sla*0.25):'<span style="color:var(--text3);font-size:12px">—</span>'}</td>
-      <td>${timeChip(hT,sla)}</td>
+      <td>${timeChip(hOlimpex,sla)} <span style="font-size:10px;color:var(--text2)">(total: ${fmtHrs(hTotal)})</span></td>
       <td style="font-size:12px;text-align:center">${sla}h</td>
       <td><span class="badge ${ok?'b-green':'b-red'}">${ok?'✓ Cumplido':'✗ Vencido'}</span></td>
     </tr>`;
