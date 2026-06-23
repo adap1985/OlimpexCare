@@ -906,7 +906,7 @@ function abrirNuevo(){
   document.getElementById('f-est-g').style.display = puedeCambiarEstado() ? '' : 'none';
   poblarTecnicos(); poblarAsesores();
   const dl=document.getElementById('list-marcas'); dl.innerHTML='';
-  cfg.marcas.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
+  cfg.marcas.forEach(m=>{const o=document.createElement('option');o.value=typeof m==='object'?m.nombre:m;dl.appendChild(o);});
   openModal('modal-tk');
 }
 
@@ -960,8 +960,8 @@ async function saveTicket(){
   const asEmail = asesorV.includes('|')?asesorV.split('|')[1]:'';
 
   const existing = editingId ? db.tickets.find(t=>t.id===editingId) : null;
-  const estadoAnt    = existing ? existing.estado  : null;
-  const tecnicoAnt   = existing ? (existing.tecnico||'') : '';
+  const estadoAnt    = existing ? existing.estado   : null;
+  const tecnicoAnt   = existing ? (existing.tecnico||existing.tecnicoAnterior||'') : '';
 
   const apertura = existing ? existing.apertura : new Date().toISOString();
 
@@ -1044,7 +1044,7 @@ function editTicket(id){
 
   // Datalist marcas
   const dl=document.getElementById('list-marcas'); dl.innerHTML='';
-  cfg.marcas.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
+  cfg.marcas.forEach(m=>{const o=document.createElement('option');o.value=typeof m==='object'?m.nombre:m;dl.appendChild(o);});
 
   // Fechas
   document.getElementById('f-apertura-lbl').textContent = t.apertura?fmtDate(t.apertura):'—';
