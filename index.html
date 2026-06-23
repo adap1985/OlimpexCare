@@ -184,7 +184,7 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
 <!-- Loading -->
 <div class="loading" id="loading">
   <div class="spinner"></div>
-  <p style="font-size:13px;color:var(--text2)">Iniciando OlimpexCare...</p>
+  <p style="font-size:13px;color:var(--text2)">Cargando OlimpexCare...</p>
 </div>
 
 <!-- Toasts -->
@@ -792,9 +792,10 @@ async function api(action, body=null) {
   });
 }
 
-async function loadData() {
+async function loadData(silent=false) {
   if (!SCRIPT_URL){hideLoading();return;}
-  showLoading();
+  if (!silent) showLoading();
+  else document.getElementById('sync-time').textContent = 'Actualizando...';
   try {
     const data = await api('getAll');
     if (!data) return;
@@ -814,7 +815,7 @@ async function loadData() {
     document.getElementById('sync-time').textContent = 'Sync: '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
     renderCurrentPage();
   } catch(e){ toast('Error al cargar: '+e.message,'error'); }
-  hideLoading();
+  if (!silent) hideLoading();
 }
 
 // ══════════════════════════════════════════════
@@ -1009,7 +1010,8 @@ async function saveTicket(){
     historial:       existing ? (existing.historial||'[]') : '[]'
   };
 
-  showLoading();
+  const btnGuardar = document.querySelector('#modal-tk .btn-primary');
+  if(btnGuardar){ btnGuardar.disabled=true; btnGuardar.innerHTML='<i class="ti ti-loader-2" style="animation:spin .7s linear infinite"></i> Guardando...'; }
   try {
     await api(editingId?'updateTicket':'saveTicket', tk);
     if(editingId){const i=db.tickets.findIndex(t=>t.id===editingId);db.tickets[i]=tk;}
@@ -1020,7 +1022,7 @@ async function saveTicket(){
     closeModal('modal-tk');
     renderTickets(); renderDashboard();
   } catch(e){toast('Error: '+e.message,'error');}
-  hideLoading();
+  if(btnGuardar){ btnGuardar.disabled=false; btnGuardar.innerHTML='<i class="ti ti-check"></i>Guardar'; }
 }
 
 // ══════════════════════════════════════════════
@@ -1423,7 +1425,7 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>{
 });
 
 checkSession();
-setInterval(()=>{if(SCRIPT_URL&&currentUser)loadData();},120000);
+setInterval(()=>{if(SCRIPT_URL&&currentUser)loadData(true);},120000);
 </script>
 </body>
 </html>
