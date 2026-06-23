@@ -283,7 +283,6 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
     </div>
     <select class="fsel" id="tk-f-est" onchange="renderTickets()">
       <option value="">Todos los estados</option>
-      <option value="reporte">Reporte</option>
       <option value="pendiente">Pendiente</option>
       <option value="cita_coordinada">Cita coordinada</option>
       <option value="en_revision">En revisión</option>
@@ -511,7 +510,6 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
     </div>
     <div class="form-group" id="f-est-g"><label>Estado</label>
       <select id="f-est" onchange="onEstado()">
-        <option value="reporte">Reporte</option>
         <option value="pendiente">Pendiente</option>
         <option value="cita_coordinada">Cita coordinada</option>
         <option value="en_revision">En revisión</option>
@@ -562,7 +560,6 @@ code{font-family:monospace;font-size:.88em;background:var(--surface2);padding:1p
 // ESTADOS
 // ══════════════════════════════════════════════
 const ESTADOS = {
-  reporte:            { label:'Reporte',               badge:'b-amber',  color:'var(--amber)' },
   pendiente:          { label:'Pendiente',              badge:'b-amber',  color:'var(--amber)' },
   cita_coordinada:    { label:'Cita coordinada',        badge:'b-blue',   color:'var(--blue)' },
   en_revision:        { label:'En revisión',            badge:'b-blue',   color:'var(--blue)' },
@@ -895,7 +892,7 @@ function abrirNuevo(){
   ['f-prod','f-marca','f-area','f-serie','f-cliente','f-contacto','f-desc','f-nota','f-resol','f-informe-num'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-informe-fecha-lbl').textContent='—';
   document.getElementById('f-prio').value='media';
-  document.getElementById('f-est').value='reporte';
+  document.getElementById('f-est').value='pendiente';
   document.getElementById('f-apertura-lbl').textContent=fmtDateNow(new Date());
   document.getElementById('f-asign-lbl').textContent='—';
   document.getElementById('f-cierre-lbl').textContent='—';
@@ -1036,7 +1033,7 @@ function editTicket(id){
   document.getElementById('f-desc').value     = t.desc||'';
   document.getElementById('f-nota').value     = t.notaTecnico||'';
   document.getElementById('f-resol').value    = t.resolucion||'';
-  document.getElementById('f-est').value      = t.estado||'reporte';
+  document.getElementById('f-est').value      = t.estado||'pendiente';
 
   // Roles
   document.getElementById('f-tec-g').style.display = esJefeOAdmin() ? '' : 'none';
